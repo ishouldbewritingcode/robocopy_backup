@@ -1,0 +1,3 @@
+# Robocopy log files
+*.log
+*_backup.log
