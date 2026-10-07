@@ -1,11 +1,37 @@
 #Requires -RunAsAdministrator
 
-$TaskName = "RobocopyBackupMirror"
+$TaskName = "RobocopyBackup"
+$LegacyTaskName = "RobocopyBackupMirror"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ScriptFile = Join-Path $ScriptDir "robocopy_backup_mirror.ps1"
+
+$Options = @{
+    "1" = "robocopy_backup_mirror.ps1"
+    "2" = "robocopy_backup_nodelete.ps1"
+}
+
+Write-Host "Which backup should run nightly at 1:00 AM?"
+Write-Host ""
+Write-Host "  1) Mirror   - Keeps the destination an exact copy of the source."
+Write-Host "                Files deleted on the source are DELETED from the destination."
+Write-Host "  2) Nodelete - Copies new and changed files only. Nothing is ever deleted"
+Write-Host "                from the destination, and newer destination files are kept."
+Write-Host ""
+
+do {
+    $Choice = (Read-Host "Enter 1 or 2").Trim()
+} until ($Options.ContainsKey($Choice))
+
+$ScriptFile = Join-Path $ScriptDir $Options[$Choice]
 
 if (-not (Test-Path $ScriptFile)) {
     throw "Script file not found: $ScriptFile"
+}
+
+# Only one backup task should exist, since both scripts write to the same
+# destination. Remove the task registered by older versions of this script.
+if (Get-ScheduledTask -TaskName $LegacyTaskName -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskName $LegacyTaskName -Confirm:$false
+    Write-Host "Removed old scheduled task '$LegacyTaskName'."
 }
 
 $Action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptFile`"" -WorkingDirectory $ScriptDir
